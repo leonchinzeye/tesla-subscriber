@@ -173,7 +173,7 @@ async function endTrip(vin: string) {
     ? await reverseGeocode(location.latitude, location.longitude)
     : null;
   const effectiveEndMs = trip.stopTime ?? Date.now();
-  const durationMinutes = (effectiveEndMs - trip.startTime.getTime()) / 60000;
+  const durationMinutes = Math.round((effectiveEndMs - trip.startTime.getTime()) / 60000);
 
   // Average speed = distance / time (includes stops, more meaningful than moving average)
   const avgSpeedKmh = distanceKm > 0 && durationMinutes > 0
@@ -271,4 +271,98 @@ export function scheduleGpsDatapoint(vin: string): void {
   const existing = gpsDebounceTimerMap.get(vin);
   if (existing) clearTimeout(existing);
   gpsDebounceTimerMap.set(vin, setTimeout(() => writeGpsDatapoint(vin), GPS_DEBOUNCE_MS));
+}
+
+export async function recoverOrphanedTrips(): Promise<void> {
+  const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+
+  const { data: orphans, error } = await supabase
+    .from('trips')
+    .select('id, vehicle_id, start_time, start_odometer')
+    .is('end_time', null)
+    .lt('start_time', thirtyMinutesAgo);
+
+  if (error) { console.error('recoverOrphanedTrips query error:', error); return; }
+  if (!orphans?.length) { console.log('No orphaned trips to recover'); return; }
+
+  console.log(`Recovering ${orphans.length} orphaned trip(s)`);
+
+  for (const trip of orphans) {
+    const { data: snap } = await supabase
+      .from('vehicle_snapshots')
+      .select('odometer, battery_level, battery_range, latitude, longitude, created_at')
+      .eq('vehicle_id', trip.vehicle_id)
+      .gt('created_at', trip.start_time)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    const { data: powerRows } = await supabase
+      .from('drive_datapoints')
+      .select('power_kw, timestamp')
+      .eq('trip_id', trip.id)
+      .not('power_kw', 'is', null)
+      .order('timestamp', { ascending: true });
+
+    let energyUsedKwh: number | null = null;
+    if (powerRows && powerRows.length >= 2) {
+      let total = 0;
+      for (let i = 1; i < powerRows.length; i++) {
+        const dtHours =
+          (new Date(powerRows[i].timestamp).getTime() -
+            new Date(powerRows[i - 1].timestamp).getTime()) /
+          3_600_000;
+        const avgPower =
+          ((powerRows[i].power_kw as number) + (powerRows[i - 1].power_kw as number)) / 2;
+        total += avgPower * dtHours;
+      }
+      energyUsedKwh = Math.max(0, total);
+    }
+
+    const endOdometer = snap?.odometer ?? null;
+    const endBattery = snap ? Math.round(snap.battery_level as number) : null;
+    const endTime = snap?.created_at ?? new Date().toISOString();
+    const distanceKm =
+      endOdometer != null ? (endOdometer - trip.start_odometer) * 1.60934 : null;
+    const durationMinutes = Math.round(
+      (new Date(endTime).getTime() - new Date(trip.start_time).getTime()) / 60000,
+    );
+    const avgSpeedKmh =
+      distanceKm != null && distanceKm > 0 && durationMinutes > 0
+        ? (distanceKm / durationMinutes) * 60
+        : null;
+    const avgEnergyWhKm =
+      energyUsedKwh != null && distanceKm != null && distanceKm > 0
+        ? (energyUsedKwh * 1000) / distanceKm
+        : null;
+    const endLocation =
+      snap?.latitude != null && snap?.longitude != null
+        ? await reverseGeocode(snap.latitude as number, snap.longitude as number)
+        : null;
+
+    const { error: updateError } = await supabase
+      .from('trips')
+      .update({
+        end_time: endTime,
+        end_odometer: endOdometer,
+        end_battery: endBattery,
+        end_latitude: snap?.latitude ?? null,
+        end_longitude: snap?.longitude ?? null,
+        end_location: endLocation,
+        distance_km: distanceKm,
+        duration_minutes: durationMinutes,
+        avg_speed_kmh: avgSpeedKmh,
+        energy_used_kwh: energyUsedKwh,
+        avg_energy_wh_km: avgEnergyWhKm,
+      })
+      .eq('id', trip.id);
+
+    if (updateError) {
+      console.error(`Failed to recover trip ${trip.id}:`, updateError);
+    } else {
+      console.log(
+        `Recovered orphaned trip id=${trip.id} distance=${distanceKm?.toFixed(1)}km energy=${energyUsedKwh?.toFixed(3)}kWh`,
+      );
+    }
+  }
 }

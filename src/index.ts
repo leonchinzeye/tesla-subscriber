@@ -2,7 +2,7 @@ import 'dotenv/config';
 import mqtt from 'mqtt';
 import { supabase, VehicleInfo, setVehicleMap } from './db';
 import { getState } from './state';
-import { handleSpeedUpdate, scheduleGpsDatapoint, getActiveTrip, recordTripPower, updateTripTelemetry } from './trips';
+import { handleSpeedUpdate, scheduleGpsDatapoint, getActiveTrip, recordTripPower, updateTripTelemetry, recoverOrphanedTrips } from './trips';
 import { handleChargeStateUpdate } from './charging';
 import { scheduleSnapshot } from './snapshot';
 
@@ -26,6 +26,7 @@ async function loadVehicleMap() {
   setVehicleMap(map);
 }
 loadVehicleMap();
+recoverOrphanedTrips();
 
 const client = mqtt.connect(`mqtts://${MQTT_BROKER}:8883`, {
   username: MQTT_USERNAME,
