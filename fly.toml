@@ -1,0 +1,14 @@
+app = 'tezzlah-subscriber'
+primary_region = 'sin'
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[env]
+  MQTT_BROKER = '9db6215fdded4176ab506e6c06a95469.s1.eu.hivemq.cloud'
+  NEXT_PUBLIC_SUPABASE_URL = 'https://jiqidipetgnlxuxdowye.supabase.co'
+
+[[vm]]
+  memory = '512mb'
+  cpu_kind = 'shared'
+  cpus = 1
