@@ -1,6 +1,7 @@
 import { supabase, getVehicleByVin } from './db';
 import { getState } from './state';
 import { reverseGeocode } from './geocode';
+import { getValidToken } from './auth';
 
 interface ActiveChargingSession {
   sessionId: number;
@@ -15,22 +16,59 @@ interface ActiveChargingSession {
 const activeChargingMap = new Map<string, ActiveChargingSession | null>();
 const lastChargeStateMap = new Map<string, string | null>();
 
+const TESLA_API_BASE = 'https://fleet-api.prd.na.vn.cloud.tesla.com';
+
+async function fetchChargerType(
+  vehicleId: string,
+  userId: string
+): Promise<{ isSupercharger: boolean; isFastCharger: boolean }> {
+  try {
+    const token = await getValidToken(userId);
+    if (!token) return { isSupercharger: false, isFastCharger: true };
+
+    const res = await fetch(
+      `${TESLA_API_BASE}/api/1/vehicles/${vehicleId}/vehicle_data?endpoints=charge_state`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (!res.ok) {
+      console.warn(`fetchChargerType: API returned ${res.status}`);
+      return { isSupercharger: false, isFastCharger: true };
+    }
+    const json = await res.json();
+    const cs = json?.response?.charge_state;
+    const type: string = cs?.fast_charger_type ?? '';
+    const brand: string = cs?.fast_charger_brand ?? '';
+    const isSupercharger = type === 'Tesla' || brand === 'Tesla' || type === 'MagicDock';
+    const isFastCharger = cs?.fast_charger_present === true;
+    return { isSupercharger, isFastCharger };
+  } catch (err) {
+    console.error('fetchChargerType error:', err);
+    return { isSupercharger: false, isFastCharger: true };
+  }
+}
+
 async function startChargingSession(chargeState: string, vin: string) {
-  const s = getState(vin);
-  const location = s['Location'] as { latitude: number; longitude: number } | null;
-  const battery = Math.round(s['BatteryLevel'] as number);
-  const odometer = s['Odometer'] as number;
-  const range = (s['EstBatteryRange'] as number) ?? null;
-
-  const locationName = location
-    ? await reverseGeocode(location.latitude, location.longitude)
-    : null;
-
   const vehicle = getVehicleByVin(vin);
   if (!vehicle) {
     console.error(`Cannot start charging session: no vehicle info for VIN ${vin}`);
     return;
   }
+
+  const s = getState(vin);
+  const location = s['Location'] as { latitude: number; longitude: number } | null;
+  const battery = Math.round(s['BatteryLevel'] as number);
+  const odometer = s['Odometer'] as number;
+  const range = (s['EstBatteryRange'] as number) ?? null;
+  const fastChargerPresent = s['FastChargerPresent'] as boolean | null;
+  let isSupercharger = false;
+  let isFastCharger = false;
+  if (fastChargerPresent) {
+    ({ isSupercharger, isFastCharger } = await fetchChargerType(vehicle.vehicleId, vehicle.userId));
+  }
+
+  const locationName = location
+    ? await reverseGeocode(location.latitude, location.longitude)
+    : null;
 
   const { data, error } = await supabase
     .from('charging_sessions')
@@ -44,6 +82,8 @@ async function startChargingSession(chargeState: string, vin: string) {
       latitude: location?.latitude ?? null,
       longitude: location?.longitude ?? null,
       location: locationName,
+      is_supercharger: isSupercharger,
+      is_fast_charger: isFastCharger,
     })
     .select('id')
     .single();
@@ -63,7 +103,7 @@ async function startChargingSession(chargeState: string, vin: string) {
     maxPowerKw: 0,
   });
 
-  console.log(`Charging started: session=${data.id} vin=${vin} battery=${battery}% location=${locationName ?? 'unknown'}`);
+  console.log(`Charging started: session=${data.id} vin=${vin} battery=${battery}% supercharger=${isSupercharger} fastCharger=${isFastCharger} location=${locationName ?? 'unknown'}`);
 }
 
 async function endChargingSession(vin: string) {
