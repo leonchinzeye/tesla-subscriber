@@ -9,6 +9,7 @@ interface ActiveChargingSession {
   startBattery: number;
   startOdometer: number;
   startRange: number | null;
+  startEnergyIn: number | null;  // ACChargingEnergyIn at session open (lifetime counter)
   powerReadings: number[];  // kW, for avg
   maxPowerKw: number;
 }
@@ -59,6 +60,9 @@ async function startChargingSession(chargeState: string, vin: string) {
   const battery = Math.round(s['BatteryLevel'] as number);
   const odometer = s['Odometer'] as number;
   const range = (s['EstBatteryRange'] as number) ?? null;
+  const maxRange = range != null && battery > 0
+    ? parseFloat(((range / battery) * 100 * 1.60934).toFixed(1))
+    : null;
   const fastChargerPresent = s['FastChargerPresent'] as boolean | null;
   let isSupercharger = false;
   let isFastCharger = false;
@@ -69,6 +73,21 @@ async function startChargingSession(chargeState: string, vin: string) {
   const locationName = location
     ? await reverseGeocode(location.latitude, location.longitude)
     : null;
+
+  let distance_since_last_charge: number | null = null;
+  if (odometer) {
+    const { data: lastSession } = await supabase
+      .from('charging_sessions')
+      .select('start_odometer')
+      .eq('vehicle_id', vehicle.vehicleId)
+      .not('start_odometer', 'is', null)
+      .order('start_time', { ascending: false })
+      .limit(1)
+      .single();
+    if (lastSession?.start_odometer) {
+      distance_since_last_charge = (odometer - lastSession.start_odometer) * 1.60934;
+    }
+  }
 
   const { data, error } = await supabase
     .from('charging_sessions')
@@ -84,6 +103,8 @@ async function startChargingSession(chargeState: string, vin: string) {
       location: locationName,
       is_supercharger: isSupercharger,
       is_fast_charger: isFastCharger,
+      distance_since_last_charge,
+      max_range: maxRange,
     })
     .select('id')
     .single();
@@ -93,12 +114,15 @@ async function startChargingSession(chargeState: string, vin: string) {
     return;
   }
 
+  const startEnergyIn = (s['ACChargingEnergyIn'] as number) ?? null;
+
   activeChargingMap.set(vin, {
     sessionId: data.id,
     startTime: new Date(),
     startBattery: battery,
     startOdometer: odometer,
     startRange: range,
+    startEnergyIn,
     powerReadings: [],
     maxPowerKw: 0,
   });
@@ -115,7 +139,10 @@ async function endChargingSession(vin: string) {
   const s = getState(vin);
   const endBattery = Math.round(s['BatteryLevel'] as number);
   const endRange = (s['EstBatteryRange'] as number) ?? null;
-  const energyAdded = (s['ACChargingEnergyIn'] as number) ?? null;
+  const endEnergyIn = (s['ACChargingEnergyIn'] as number) ?? null;
+  const energyAdded = endEnergyIn != null && session.startEnergyIn != null
+    ? Math.max(0, endEnergyIn - session.startEnergyIn)
+    : endEnergyIn;  // fallback if we didn't capture start (e.g. subscriber restart mid-session)
   const avgPowerKw = session.powerReadings.length > 0
     ? session.powerReadings.reduce((a, b) => a + b, 0) / session.powerReadings.length
     : null;
@@ -182,8 +209,16 @@ export async function recordChargingDatapoint(vin: string): Promise<void> {
   const activeCharging = activeChargingMap.get(vin);
   if (!activeCharging) return;
   const s = getState(vin);
-  const powerKw = (s['ACChargingPower'] as number) ?? null;
-  if (powerKw != null) {
+  // AC chargers: use ACChargingPower directly
+  // DC chargers (Supercharger): ACChargingPower = 0, derive from PackVoltage × PackCurrent
+  const acPower = (s['ACChargingPower'] as number) ?? null;
+  const packVoltage = (s['PackVoltage'] as number) ?? null;
+  const packCurrent = (s['PackCurrent'] as number) ?? null;
+  const dcPower = packVoltage != null && packCurrent != null && packCurrent > 0
+    ? parseFloat((packVoltage * packCurrent / 1000).toFixed(2))
+    : null;
+  const powerKw = (acPower != null && acPower > 0) ? acPower : (dcPower ?? acPower);
+  if (powerKw != null && powerKw > 0) {
     activeCharging.powerReadings.push(powerKw);
     if (powerKw > activeCharging.maxPowerKw) activeCharging.maxPowerKw = powerKw;
   }
