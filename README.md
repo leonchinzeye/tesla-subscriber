@@ -60,6 +60,7 @@ Each message payload is a JSON-encoded scalar (number, string, or `{latitude, lo
 | `SUPABASE_SERVICE_KEY` | Fly secret |
 | `TESLA_CLIENT_ID` | Fly secret |
 | `TESLA_CLIENT_SECRET` | Fly secret |
+| `INSIGHTS_URL` | Fly secret — URL of `wattlah-insights`; fires `POST /enrich/trip/:id` after each trip closes |
 
 For local dev, copy these into a `.env` file (gitignored).
 
