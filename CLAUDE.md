@@ -2,7 +2,7 @@
 
 ## What this service is
 
-Node.js/TypeScript MQTT subscriber deployed on Fly.io (`tezzlah-subscriber`, Singapore region). It bridges Tesla Fleet Telemetry (MQTT) to Supabase. It is a long-running process with no HTTP server.
+Node.js/TypeScript MQTT subscriber deployed on Fly.io (`wattlah-subscriber`, Singapore region). It bridges Tesla Fleet Telemetry (MQTT) to Supabase. It is a long-running process with no HTTP server.
 
 ## Key behaviours
 
@@ -44,9 +44,9 @@ All secrets are set as Fly secrets (`fly secrets set KEY=value`). Non-secrets ar
 ## Deploy & logs
 
 ```bash
-fly deploy -a tezzlah-subscriber   # from this directory
-fly logs -a tezzlah-subscriber
-fly secrets set KEY=value -a tezzlah-subscriber
+fly deploy -a wattlah-subscriber   # from this directory
+fly logs -a wattlah-subscriber
+fly secrets set KEY=value -a wattlah-subscriber
 ```
 
 ## Do not

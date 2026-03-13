@@ -1,4 +1,4 @@
-app = 'tezzlah-subscriber'
+app = 'wattlah-subscriber'
 primary_region = 'sin'
 
 [build]

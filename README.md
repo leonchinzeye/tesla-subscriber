@@ -1,6 +1,6 @@
 # tesla-subscriber
 
-MQTT subscriber that receives Tesla Fleet Telemetry data and writes it to Supabase. Deployed on Fly.io as `tezzlah-subscriber`.
+MQTT subscriber that receives Tesla Fleet Telemetry data and writes it to Supabase. Deployed on Fly.io as `wattlah-subscriber`.
 
 ## What it does
 
@@ -74,5 +74,5 @@ npm run dev        # tsx watch — hot reload
 
 ```bash
 fly deploy         # from this directory
-fly logs -a tezzlah-subscriber
+fly logs -a wattlah-subscriber
 ```

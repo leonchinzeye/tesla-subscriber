@@ -235,6 +235,12 @@ async function endTrip(vin: string) {
     console.error('Failed to close trip:', error);
   } else {
     console.log(`Trip ended: id=${trip.tripId} distance=${distanceKm.toFixed(1)}km duration=${durationMinutes}min`);
+    // Fire-and-forget: trigger fee enrichment (ERP etc.) in wattlah-insights
+    const insightsUrl = process.env.INSIGHTS_URL;
+    if (insightsUrl) {
+      fetch(`${insightsUrl}/enrich/trip/${trip.tripId}`, { method: 'POST' })
+        .catch(err => console.warn(`[Insights] Failed to notify for trip ${trip.tripId}:`, err));
+    }
   }
 }
 
