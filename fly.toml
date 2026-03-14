@@ -8,19 +8,15 @@ primary_region = 'sin'
   MQTT_BROKER = '9db6215fdded4176ab506e6c06a95469.s1.eu.hivemq.cloud'
   NEXT_PUBLIC_SUPABASE_URL = 'https://jiqidipetgnlxuxdowye.supabase.co'
 
-[[services]]
+[http_service]
   internal_port = 8080
-  protocol = "tcp"
+  force_https = false
   auto_stop_machines = false
   auto_start_machines = true
 
-  [[services.ports]]
-    port = 80
-    handlers = ["http"]
-
-  [[services.http_checks]]
-    interval = 30000
-    timeout = 5000
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
     grace_period = "10s"
     method = "GET"
     path = "/"
