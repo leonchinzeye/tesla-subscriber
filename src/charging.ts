@@ -147,6 +147,11 @@ async function endChargingSession(vin: string) {
     ? session.powerReadings.reduce((a, b) => a + b, 0) / session.powerReadings.length
     : null;
 
+  const BATTERY_CAPACITY_KWH = 62.5; // Model Y RWD 110 (SG) usable capacity
+  const batteryEnergyGained = parseFloat(
+    ((endBattery - session.startBattery) / 100 * BATTERY_CAPACITY_KWH).toFixed(2)
+  );
+
   const rangeAdded = endRange != null && session.startRange != null
     ? (endRange - session.startRange) * 1.60934  // miles → km
     : null;
@@ -172,7 +177,8 @@ async function endChargingSession(vin: string) {
       end_time: new Date().toISOString(),
       end_battery: endBattery,
       end_range: endRange,
-      energy_added_kwh: energyAdded,
+      energy_used_kwh: energyAdded,
+      energy_added_kwh: batteryEnergyGained > 0 ? batteryEnergyGained : null,
       rated_range_added: rangeAdded,
       charge_rate_kw: avgPowerKw,
       max_charge_rate_kw: session.maxPowerKw > 0 ? session.maxPowerKw : null,
