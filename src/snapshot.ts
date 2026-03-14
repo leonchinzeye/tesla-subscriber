@@ -38,12 +38,12 @@ async function writeSnapshot(vin: string) {
     charger_actual_current: (s['ChargeAmps'] as number) ?? null,
     charge_energy_added: (s['ACChargingEnergyIn'] as number) ?? null,
     hvac_on: s['HvacAutoMode'] != null ? (s['HvacAutoMode'] as string) !== 'HvacAutoModeOff' : null,
-    front_driver_door: (s['DoorState'] as any)?.driverFront ?? null,
-    front_passenger_door: (s['DoorState'] as any)?.passengerFront ?? null,
-    rear_driver_door: (s['DoorState'] as any)?.driverRear ?? null,
-    rear_passenger_door: (s['DoorState'] as any)?.passengerRear ?? null,
-    trunk_open: (s['DoorState'] as any)?.trunkRear ?? null,
-    frunk_open: (s['DoorState'] as any)?.trunkFront ?? null,
+    front_driver_door: (s['DoorState'] as any)?.DriverFront ?? (s['DoorState'] as any)?.driverFront ?? null,
+    front_passenger_door: (s['DoorState'] as any)?.PassengerFront ?? (s['DoorState'] as any)?.passengerFront ?? null,
+    rear_driver_door: (s['DoorState'] as any)?.DriverRear ?? (s['DoorState'] as any)?.driverRear ?? null,
+    rear_passenger_door: (s['DoorState'] as any)?.PassengerRear ?? (s['DoorState'] as any)?.passengerRear ?? null,
+    trunk_open: (s['DoorState'] as any)?.TrunkRear ?? (s['DoorState'] as any)?.trunkRear ?? null,
+    frunk_open: (s['DoorState'] as any)?.TrunkFront ?? (s['DoorState'] as any)?.trunkFront ?? null,
   };
 
   console.log(`Writing snapshot: vin=${vin} battery=${snapshot.battery_level}% odometer=${snapshot.odometer} charging=${snapshot.charging_state}`);
