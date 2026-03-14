@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import http from 'http';
 import mqtt from 'mqtt';
 import { supabase, VehicleInfo, setVehicleMap } from './db';
 import { getState } from './state';
@@ -88,3 +89,6 @@ client.on('message', (topic, payload) => {
 
 client.on('error', (err) => console.error('MQTT error:', err));
 client.on('disconnect', () => console.log('Disconnected from HiveMQ'));
+
+// Health check server — keeps Fly.io from stopping the machine
+http.createServer((_, res) => { res.writeHead(200); res.end('ok'); }).listen(8080);
