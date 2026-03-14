@@ -3,7 +3,7 @@ import { getState } from './state';
 import { recordChargingDatapoint } from './charging';
 
 const debounceTimerMap = new Map<string, ReturnType<typeof setTimeout>>();
-const DEBOUNCE_MS = 1000;
+const DEBOUNCE_MS = 30000;
 
 async function writeSnapshot(vin: string) {
   const s = getState(vin);

@@ -26,7 +26,38 @@ async function loadVehicleMap() {
   }
   setVehicleMap(map);
 }
-loadVehicleMap();
+
+async function seedStateFromLastSnapshot() {
+  const { data } = await supabase
+    .from('vehicle_snapshots')
+    .select('vehicle_id, odometer, battery_level, battery_range')
+    .order('created_at', { ascending: false })
+    .limit(10);
+  if (!data?.length) return;
+
+  // Find the latest snapshot per VIN and seed odometer into state
+  const seen = new Set<string>();
+  for (const row of data) {
+    if (seen.has(row.vehicle_id)) continue;
+    seen.add(row.vehicle_id);
+
+    // Find the VIN for this vehicle_id from the vehicle map
+    const { data: vehicles } = await supabase
+      .from('vehicles')
+      .select('vin')
+      .eq('id', row.vehicle_id)
+      .single();
+    if (!vehicles?.vin) continue;
+
+    const s = getState(vehicles.vin);
+    if (row.odometer != null) s['Odometer'] = row.odometer;
+    if (row.battery_level != null) s['BatteryLevel'] = row.battery_level;
+    if (row.battery_range != null) s['EstBatteryRange'] = row.battery_range;
+    console.log(`Seeded state from last snapshot: vin=${vehicles.vin} odometer=${row.odometer}`);
+  }
+}
+
+loadVehicleMap().then(seedStateFromLastSnapshot);
 recoverOrphanedTrips();
 
 const client = mqtt.connect(`mqtts://${MQTT_BROKER}:8883`, {
@@ -36,9 +67,9 @@ const client = mqtt.connect(`mqtts://${MQTT_BROKER}:8883`, {
 
 client.on('connect', () => {
   console.log('Connected to HiveMQ');
-  client.subscribe('tesla/+/v/+', (err) => {
+  client.subscribe('tesla/#', (err) => {
     if (err) console.error('Subscribe error:', err);
-    else console.log('Subscribed to tesla/+/v/+');
+    else console.log('Subscribed to tesla/#');
   });
 });
 
@@ -83,8 +114,11 @@ client.on('message', (topic, payload) => {
   // Update last-telemetry timestamp for watchdog (no-op if no active trip)
   updateTripTelemetry(vin);
 
-  // Debounce: reset the timer on every field arrival, write snapshot after 1s of silence
-  scheduleSnapshot(vin);
+  // Debounce: schedule snapshot on meaningful fields only.
+  // PackCurrent/PackVoltage arrive every 5s and would prevent the 30s debounce from ever firing.
+  if (fieldKey !== 'PackCurrent' && fieldKey !== 'PackVoltage') {
+    scheduleSnapshot(vin);
+  }
 });
 
 client.on('error', (err) => console.error('MQTT error:', err));
