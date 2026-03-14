@@ -101,6 +101,7 @@ client.on('message', (topic, payload) => {
     handleChargeStateUpdate(value, vin);
   }
 
+
   // GPS tracking: write drive datapoint 2s after last Location update (separate from snapshot debounce)
   if (fieldKey === 'Location' && getActiveTrip(vin)) {
     scheduleGpsDatapoint(vin);

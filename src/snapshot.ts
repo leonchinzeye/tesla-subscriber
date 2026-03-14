@@ -37,7 +37,7 @@ async function writeSnapshot(vin: string) {
     charger_voltage: (s['ChargerVoltage'] as number) ?? null,
     charger_actual_current: (s['ChargeAmps'] as number) ?? null,
     charge_energy_added: (s['ACChargingEnergyIn'] as number) ?? null,
-    hvac_on: s['HvacAutoMode'] != null ? (s['HvacAutoMode'] as string) !== 'HvacAutoModeOff' : null,
+    hvac_on: s['HvacACEnabled'] != null ? Boolean(s['HvacACEnabled']) : null,
     front_driver_door: (s['DoorState'] as any)?.DriverFront ?? (s['DoorState'] as any)?.driverFront ?? null,
     front_passenger_door: (s['DoorState'] as any)?.PassengerFront ?? (s['DoorState'] as any)?.passengerFront ?? null,
     rear_driver_door: (s['DoorState'] as any)?.DriverRear ?? (s['DoorState'] as any)?.driverRear ?? null,
