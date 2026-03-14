@@ -37,6 +37,13 @@ async function writeSnapshot(vin: string) {
     charger_voltage: (s['ChargerVoltage'] as number) ?? null,
     charger_actual_current: (s['ChargeAmps'] as number) ?? null,
     charge_energy_added: (s['ACChargingEnergyIn'] as number) ?? null,
+    hvac_on: s['HvacAutoMode'] != null ? (s['HvacAutoMode'] as string) !== 'HvacAutoModeOff' : null,
+    front_driver_door: (s['FrontDriverDoor'] as boolean) ?? null,
+    front_passenger_door: (s['FrontPassengerDoor'] as boolean) ?? null,
+    rear_driver_door: (s['RearDriverDoor'] as boolean) ?? null,
+    rear_passenger_door: (s['RearPassengerDoor'] as boolean) ?? null,
+    trunk_open: (s['TrunkOpen'] as boolean) ?? null,
+    frunk_open: (s['FrontTrunkOpen'] as boolean) ?? null,
   };
 
   console.log(`Writing snapshot: vin=${vin} battery=${snapshot.battery_level}% odometer=${snapshot.odometer} charging=${snapshot.charging_state}`);
