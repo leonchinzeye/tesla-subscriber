@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import http from 'http';
 import mqtt from 'mqtt';
-import { supabase, VehicleInfo, setVehicleMap } from './db';
+import { supabase, VehicleInfo, setVehicleMap, getVehicleByVin } from './db';
 import { getState } from './state';
 import { handleSpeedUpdate, scheduleGpsDatapoint, getActiveTrip, recordTripPower, updateTripTelemetry, recoverOrphanedTrips } from './trips';
 import { handleChargeStateUpdate } from './charging';
@@ -89,7 +89,27 @@ client.on('message', (topic, payload) => {
   }
 
   const s = getState(vin);
+  const prevValue = s[fieldKey];
   s[fieldKey] = value;
+
+  // Sentry mode: detect session end (true → false) and trigger enrichment
+  if (fieldKey === 'SentryMode') {
+    const wasActive = prevValue != null && Boolean(prevValue);
+    const isActive = value != null && Boolean(value);
+    if (wasActive && !isActive) {
+      const insightsUrl = process.env.INSIGHTS_URL;
+      if (insightsUrl) {
+        const vehicle = getVehicleByVin(vin);
+        if (vehicle) {
+          fetch(`${insightsUrl}/enrich/sentry-sessions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ vehicle_id: vehicle.vehicleId }),
+          }).catch(err => console.error('[Sentry] Failed to trigger enrichment:', err));
+        }
+      }
+    }
+  }
 
   // Trip detection: handle speed updates immediately (don't wait for debounce)
   if (fieldKey === 'VehicleSpeed' && typeof value === 'number') {

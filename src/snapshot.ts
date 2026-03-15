@@ -44,6 +44,8 @@ async function writeSnapshot(vin: string) {
     rear_passenger_door: (s['DoorState'] as any)?.PassengerRear ?? (s['DoorState'] as any)?.passengerRear ?? null,
     trunk_open: (s['DoorState'] as any)?.TrunkRear ?? (s['DoorState'] as any)?.trunkRear ?? null,
     frunk_open: (s['DoorState'] as any)?.TrunkFront ?? (s['DoorState'] as any)?.trunkFront ?? null,
+    sentry_mode: s['SentryMode'] != null ? Boolean(s['SentryMode']) : null,
+    locked: s['Locked'] != null ? Boolean(s['Locked']) : null,
   };
 
   console.log(`Writing snapshot: vin=${vin} battery=${snapshot.battery_level}% odometer=${snapshot.odometer} charging=${snapshot.charging_state}`);
