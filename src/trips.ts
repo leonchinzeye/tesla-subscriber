@@ -238,8 +238,10 @@ async function endTrip(vin: string) {
     // Fire-and-forget: trigger fee enrichment (ERP etc.) in wattlah-insights
     const insightsUrl = process.env.INSIGHTS_URL;
     if (insightsUrl) {
-      fetch(`${insightsUrl}/enrich/trip/${trip.tripId}`, { method: 'POST' })
-        .catch(err => console.warn(`[Insights] Failed to notify for trip ${trip.tripId}:`, err));
+      fetch(`${insightsUrl}/enrich/trip/${trip.tripId}`, {
+        method: 'POST',
+        headers: { 'x-insights-secret': process.env.INSIGHTS_SECRET ?? '' },
+      }).catch(err => console.warn(`[Insights] Failed to notify for trip ${trip.tripId}:`, err));
     }
   }
 }

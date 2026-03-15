@@ -108,7 +108,10 @@ client.on('message', (topic, payload) => {
         if (vehicle) {
           fetch(`${insightsUrl}/enrich/sentry-sessions`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              'x-insights-secret': process.env.INSIGHTS_SECRET ?? '',
+            },
             body: JSON.stringify({ vehicle_id: vehicle.vehicleId }),
           }).catch(err => console.error('[Sentry] Failed to trigger enrichment:', err));
         }
