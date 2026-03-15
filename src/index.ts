@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import http from 'http';
 import mqtt from 'mqtt';
-import { supabase, VehicleInfo, setVehicleMap, getVehicleByVin } from './db';
+import { supabase, VehicleInfo, setVehicleMap, getVehicleByVin, addVehicleToMap } from './db';
 import { getState } from './state';
 import { handleSpeedUpdate, scheduleGpsDatapoint, getActiveTrip, recordTripPower, updateTripTelemetry, recoverOrphanedTrips } from './trips';
 import { handleChargeStateUpdate } from './charging';
@@ -64,6 +64,29 @@ async function seedStateFromLastSnapshot() {
 
 loadVehicleMap().then(seedStateFromLastSnapshot);
 recoverOrphanedTrips();
+
+// Hot-reload: pick up new vehicles without restarting
+supabase
+  .channel('vehicles-inserts')
+  .on(
+    'postgres_changes',
+    { event: 'INSERT', schema: 'public', table: 'vehicles' },
+    (payload) => {
+      const v = payload.new as {
+        id: number; vin: string; display_name: string;
+        user_id: string; battery_capacity_kwh: number | null;
+      };
+      addVehicleToMap(v.vin, {
+        vehicleId: String(v.id),
+        displayName: v.display_name,
+        userId: v.user_id,
+        batteryCapacityKwh: v.battery_capacity_kwh ?? null,
+      });
+    }
+  )
+  .subscribe((status) => {
+    console.log(`[Realtime] vehicles channel: ${status}`);
+  });
 
 const client = mqtt.connect(`mqtts://${MQTT_BROKER}:8883`, {
   username: MQTT_USERNAME,

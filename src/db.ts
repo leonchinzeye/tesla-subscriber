@@ -20,3 +20,8 @@ export function setVehicleMap(map: Map<string, VehicleInfo>) {
   vehicleMap.clear();
   map.forEach((v, k) => vehicleMap.set(k, v));
 }
+
+export function addVehicleToMap(vin: string, info: VehicleInfo) {
+  vehicleMap.set(vin, info);
+  console.log(`[Realtime] Vehicle added to map: vin=${vin} id=${info.vehicleId}`);
+}
