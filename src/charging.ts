@@ -136,6 +136,7 @@ async function endChargingSession(vin: string) {
   const session = activeCharging;
   activeChargingMap.set(vin, null);
 
+  const vehicle = getVehicleByVin(vin);
   const s = getState(vin);
   const endBattery = Math.round(s['BatteryLevel'] as number);
   const endRange = (s['EstBatteryRange'] as number) ?? null;
@@ -147,10 +148,41 @@ async function endChargingSession(vin: string) {
     ? session.powerReadings.reduce((a, b) => a + b, 0) / session.powerReadings.length
     : null;
 
-  const BATTERY_CAPACITY_KWH = 62.5; // Model Y RWD 110 (SG) usable capacity
+  const batteryCapacityKwh = vehicle?.batteryCapacityKwh ?? 62.5;
   const batteryEnergyGained = parseFloat(
-    ((endBattery - session.startBattery) / 100 * BATTERY_CAPACITY_KWH).toFixed(2)
+    ((endBattery - session.startBattery) / 100 * batteryCapacityKwh).toFixed(2)
   );
+
+  // Self-calibration: if this was a near-full charge (start ≤ 20% → end ≥ 95%),
+  // compute actual capacity from ACChargingEnergyIn delta and update the DB.
+  if (
+    vehicle &&
+    session.startBattery <= 20 &&
+    endBattery >= 95 &&
+    energyAdded != null &&
+    energyAdded > 10
+  ) {
+    const batteryDelta = (endBattery - session.startBattery) / 100;
+    if (batteryDelta > 0) {
+      const computedCapacity = parseFloat((energyAdded / batteryDelta).toFixed(1));
+      // Sanity check: must be in a plausible EV range (40–120 kWh)
+      if (computedCapacity >= 40 && computedCapacity <= 120) {
+        supabase
+          .from('vehicles')
+          .update({ battery_capacity_kwh: computedCapacity })
+          .eq('id', vehicle.vehicleId)
+          .then(({ error }) => {
+            if (error) {
+              console.error('[Charging] Failed to update battery_capacity_kwh:', error);
+            } else {
+              console.log(`[Charging] Self-calibrated battery capacity: ${computedCapacity} kWh for vehicle=${vehicle.vehicleId}`);
+              // Update in-memory value too
+              vehicle.batteryCapacityKwh = computedCapacity;
+            }
+          });
+      }
+    }
+  }
 
   const rangeAdded = endRange != null && session.startRange != null
     ? (endRange - session.startRange) * 1.60934  // miles → km
@@ -159,7 +191,6 @@ async function endChargingSession(vin: string) {
   // Auto-calculate cost from global electricity rate setting
   let cost: number | null = null;
   let costPerKwh: number | null = null;
-  const vehicle = getVehicleByVin(vin);
   const chargeRateQuery = supabase.from('user_settings').select('value').eq('key', 'electricity_rate');
   if (vehicle) chargeRateQuery.eq('user_id', vehicle.userId);
   const { data: rateSetting } = await chargeRateQuery.single();

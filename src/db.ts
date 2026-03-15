@@ -9,6 +9,7 @@ export interface VehicleInfo {
   vehicleId: string;   // Tesla numeric vehicle_id as string
   displayName: string;
   userId: string;
+  batteryCapacityKwh: number | null;
 }
 
 const vehicleMap = new Map<string, VehicleInfo>();

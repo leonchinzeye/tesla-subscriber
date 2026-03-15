@@ -14,15 +14,20 @@ const MQTT_PASSWORD = process.env.MQTT_PASSWORD!;
 async function loadVehicleMap() {
   const { data, error } = await supabase
     .from('vehicles')
-    .select('id, vin, display_name, user_id');
+    .select('id, vin, display_name, user_id, battery_capacity_kwh');
   if (!data?.length) {
     console.error('No vehicles found:', error?.message);
     return;
   }
   const map = new Map<string, VehicleInfo>();
   for (const v of data) {
-    map.set(v.vin, { vehicleId: String(v.id), displayName: v.display_name, userId: v.user_id });
-    console.log(`Loaded vehicle: vin=${v.vin} id=${v.id}`);
+    map.set(v.vin, {
+      vehicleId: String(v.id),
+      displayName: v.display_name,
+      userId: v.user_id,
+      batteryCapacityKwh: v.battery_capacity_kwh ?? null,
+    });
+    console.log(`Loaded vehicle: vin=${v.vin} id=${v.id} capacity=${v.battery_capacity_kwh ?? 'unknown'}kWh`);
   }
   setVehicleMap(map);
 }
